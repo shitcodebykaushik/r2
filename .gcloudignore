@@ -1,0 +1,33 @@
+# Node modules will be installed in the container
+node_modules/
+
+# Built files will be generated in the container
+dist/
+
+# Git files
+.git/
+.gitignore
+
+# Environment files
+.env
+.env.*
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Documentation
+README.md
