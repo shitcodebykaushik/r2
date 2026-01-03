@@ -223,6 +223,13 @@ export const calculateNextState = (
     altitude: finalAltitude,
     velocity: finalVelocity,
     acceleration: finalAcceleration,
+    
+    // 2D Position & Velocity (placeholder for now - will implement orbital mechanics later)
+    positionX: currentState.positionX || 0,
+    positionY: currentState.positionY || 6371000,
+    velocityX: currentState.velocityX || 0,
+    velocityY: currentState.velocityY || 0,
+    
     stage1Fuel: newS1Fuel,
     stage2Fuel: newS2Fuel,
     activeStage: newActiveStage,
@@ -230,6 +237,20 @@ export const calculateNextState = (
     phase: newPhase,
     maxAltitude: Math.max(maxAltitude, finalAltitude),
     maxVelocity: Math.max(maxVelocity, finalVelocity),
+    
+    // Orbital Elements (placeholder)
+    apogee: currentState.apogee || 0,
+    perigee: currentState.perigee || 0,
+    eccentricity: currentState.eccentricity || 0,
+    semiMajorAxis: currentState.semiMajorAxis || 6371000,
+    orbitalPeriod: currentState.orbitalPeriod || 0,
+    inclination: currentState.inclination || 0,
+    orbitalVelocity: currentState.orbitalVelocity || 0,
+    isOrbiting: currentState.isOrbiting || false,
+    timeToApogee: currentState.timeToApogee || 0,
+    timeToPerigee: currentState.timeToPerigee || 0,
+    orbitsCompleted: currentState.orbitsCompleted || 0,
+    
     temperature: newTemperature,
     maxTemperature: Math.max(maxTemperature, newTemperature),
     gForce: gForce,
@@ -242,7 +263,57 @@ export const calculateNextState = (
     deltaVRemaining: remainingDeltaV,
     thrustAngle: thrustAngle,
     downrangeDistance: newDownrange,
-    structuralLoad: structuralLoad
+    structuralLoad: structuralLoad,
+    
+    // Engine Reliability
+    stage1FailedEngines: currentState.stage1FailedEngines || [],
+    stage2FailedEngines: currentState.stage2FailedEngines || [],
+    thrustPercentage: currentState.thrustPercentage || 100,
+    
+    // Wind
+    windVelocityX: currentState.windVelocityX || 0,
+    windVelocityY: currentState.windVelocityY || 0,
+    crosswindSpeed: currentState.crosswindSpeed || 0,
+    windForceX: currentState.windForceX || 0,
+    
+    // Fuel Slosh
+    fuelSloshOffset: currentState.fuelSloshOffset || 0,
+    centerOfMassX: currentState.centerOfMassX || 0,
+    centerOfMassY: currentState.centerOfMassY || 0,
+    sloshTorque: currentState.sloshTorque || 0,
+    
+    // RCS
+    rcsFuel: currentState.rcsFuel || 0,
+    rcsEnabled: currentState.rcsEnabled || false,
+    rollAngle: currentState.rollAngle || 0,
+    pitchRate: currentState.pitchRate || 0,
+    yawRate: currentState.yawRate || 0,
+    rollRate: currentState.rollRate || 0,
+    manualControl: currentState.manualControl || false,
+    
+    // Maneuvers
+    plannedManeuvers: currentState.plannedManeuvers || [],
+    currentManeuver: currentState.currentManeuver || null,
+    
+    // Payload
+    payloadDeployed: currentState.payloadDeployed || false,
+    deploymentTime: currentState.deploymentTime || null,
+    
+    // Docking
+    targetRelativePosition: currentState.targetRelativePosition || null,
+    targetRelativeVelocity: currentState.targetRelativeVelocity || null,
+    dockingAlignment: currentState.dockingAlignment || 0,
+    isDocked: currentState.isDocked || false,
+    
+    // Landing System
+    landingLegsDeployed: currentState.landingLegsDeployed || false,
+    gridFinsDeployed: currentState.gridFinsDeployed || false,
+    landingBurnStartAltitude: currentState.landingBurnStartAltitude || null,
+    landingTargetX: currentState.landingTargetX || 0,
+    landingAccuracy: currentState.landingAccuracy || 0,
+    recoveryPercentage: currentState.recoveryPercentage || 0,
+    boostbackBurnComplete: currentState.boostbackBurnComplete || false,
+    reentryBurnComplete: currentState.reentryBurnComplete || false,
   };
 };
 
