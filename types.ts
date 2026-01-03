@@ -12,11 +12,11 @@ export interface StageConfig {
 }
 
 export interface RocketConfig {
-  name: string; // e.g. "Falcon 9", "Starship"
+  name: string; 
   stage1: StageConfig;
   stage2: StageConfig;
-  dragCoefficient: number; // Dimensionless
-  payloadMass: number; // kg
+  dragCoefficient: number;
+  payloadMass: number; 
   stagingType: 'cold' | 'hot' | 'ullage'; // Type of stage separation
   rcsFuel: number; // kg (reaction control system fuel)
   rcsThrust: number; // Newtons per thruster
