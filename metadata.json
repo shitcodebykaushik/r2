@@ -1,0 +1,5 @@
+{
+  "name": "Orbital Architect AI",
+  "description": "A physics-based rocket launch simulator powered by Gemini. Design your rocket, tweak parameters, simulation launch physics in real-time, and get AI-driven mission analysis and optimization tips.",
+  "requestFramePermissions": []
+}
