@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { RocketConfig, SimulationState } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: "AIzaSyDkd_4zo4rCa0g_wBuwh9bO7MTm9GK7dlU" });
 
 export const analyzeMission = async (
   config: RocketConfig,
