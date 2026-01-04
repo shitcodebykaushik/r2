@@ -21,13 +21,30 @@ export interface LandingGuidance {
 /**
  * Calculate suicide burn start altitude
  * Formula: h = v² / (2 * (a_thrust - g))
+ * Accounts for mass change during burn
  */
 export function calculateSuicideBurnAltitude(
   velocity: number,
   mass: number,
-  thrust: number
+  thrust: number,
+  burnRate: number = 0
 ): number {
-  const thrustAccel = thrust / mass;
+  // Iterative approximation for mass change
+  let estimatedBurnTime = velocity / ((thrust / mass) - GRAVITY);
+  let avgMass = mass;
+
+  if (burnRate > 0) {
+    for (let i = 0; i < 3; i++) {
+      const fuelConsumed = estimatedBurnTime * burnRate;
+      const finalMass = Math.max(1, mass - fuelConsumed);
+      avgMass = (mass + finalMass) / 2;
+      const avgAccel = (thrust / avgMass) - GRAVITY;
+      if (avgAccel <= 0) break;
+      estimatedBurnTime = velocity / avgAccel;
+    }
+  }
+
+  const thrustAccel = thrust / avgMass;
   const netAccel = thrustAccel - GRAVITY;
   
   if (netAccel <= 0) return 0; // Can't decelerate
@@ -41,6 +58,7 @@ export function calculateSuicideBurnAltitude(
 
 /**
  * Calculate time to impact (simplified ballistic trajectory)
+ * Includes drag approximation
  */
 export function calculateTimeToImpact(
   altitude: number,
@@ -50,7 +68,9 @@ export function calculateTimeToImpact(
   
   // Solve: h = v*t + 0.5*g*t²
   // Quadratic formula
-  const a = 0.5 * GRAVITY;
+  // Using reduced gravity to approximate atmospheric drag
+  const effectiveGravity = GRAVITY * 0.9;
+  const a = 0.5 * effectiveGravity;
   const b = -velocity;
   const c = altitude;
   
@@ -124,7 +144,8 @@ export function computeLandingGuidance(
   const suicideBurnAlt = calculateSuicideBurnAltitude(
     Math.abs(state.velocity),
     stage1Mass,
-    stage1Config.thrust
+    stage1Config.thrust,
+    stage1Config.burnRate
   );
   
   // Time to impact
@@ -164,10 +185,25 @@ export function computeLandingGuidance(
   } else if (state.phase === 'RE-ENTRY') {
     targetThrottle = 0.7; // 70% thrust
   } else if (state.phase === 'LANDING') {
-    // Proportional throttle based on velocity
-    const velMagnitude = Math.abs(state.velocity);
-    targetThrottle = Math.min(1.0, velMagnitude / 50); // Ramp down as we slow
-    targetThrottle = Math.max(0.3, targetThrottle); // Minimum 30%
+    // PID Control for Landing
+    // Target velocity decreases as we get closer to ground
+    const targetV = -Math.max(2, state.altitude / 10); // e.g. at 100m, target -10m/s
+    const error = targetV - state.velocity; // if v=-20, target=-10, error=10 (need thrust)
+    
+    const Kp = 0.1;
+    const Kd = 0.05;
+    
+    // Estimate hover throttle
+    const hoverThrottle = (stage1Mass * GRAVITY) / stage1Config.thrust;
+    
+    // Derivative term (using acceleration)
+    // We want to oppose changes that move us away from target?
+    // Actually, just P-control with feedforward (hover) is often good.
+    // D-term: -Kd * acceleration (damping)
+    
+    const output = hoverThrottle + Kp * error - Kd * state.acceleration;
+    
+    targetThrottle = Math.min(1.0, Math.max(0.1, output));
   }
   
   // Target angle (for lateral correction toward landing pad)
