@@ -53,11 +53,15 @@ export function calculateGravity(altitude: number): number {
 
 /**
  * Calculate orbital velocity for circular orbit at given altitude
- * v_circular = sqrt(μ / r)
+ * v_circular = sqrt(μ / r) - v_rotation
+ * Returns surface-relative velocity required
  */
-export function calculateCircularOrbitalVelocity(altitude: number): number {
+export function calculateCircularOrbitalVelocity(altitude: number, latitude: number = 0): number {
   const r = EARTH_RADIUS + altitude;
-  return Math.sqrt(EARTH_MU / r);
+  const vInertial = Math.sqrt(EARTH_MU / r);
+  const latRad = latitude * (Math.PI / 180);
+  const vRot = EARTH_ROTATION_RATE * r * Math.cos(latRad);
+  return vInertial - vRot;
 }
 
 /**
@@ -100,9 +104,9 @@ export function calculateOrbitalElements(
 
   // Eccentricity from energy and angular momentum
   // e = sqrt(1 + (2εh²/μ²))
-  const eccentricity = Math.sqrt(
-    1 + (2 * specificEnergy * angularMomentum * angularMomentum) / (EARTH_MU * EARTH_MU)
-  );
+  // Added bounds check to prevent NaN for hyperbolic/parabolic orbits due to floating point errors
+  const term = 1 + (2 * specificEnergy * angularMomentum * angularMomentum) / (EARTH_MU * EARTH_MU);
+  const eccentricity = Math.sqrt(Math.max(0, term));
 
   // Apogee and perigee distances from Earth center
   const apogeeDist = semiMajorAxis * (1 + eccentricity);
@@ -339,8 +343,9 @@ export function propagateOrbit(
   velocity: Vector2,
   dt: number
 ): { position: Vector2; velocity: Vector2 } {
-  // For now, use simple Euler integration
-  // TODO: Implement more accurate orbital propagator (SGP4 or two-body problem solution)
+  // Using Symplectic Euler integration for better orbital stability
+  // v(t+1) = v(t) + a(x(t)) * dt
+  // x(t+1) = x(t) + v(t+1) * dt
   
   const r = vectorMagnitude(position);
   const gravAccel = EARTH_MU / (r * r);
@@ -349,7 +354,7 @@ export function propagateOrbit(
   const acceleration = vectorScale(gravDir, gravAccel);
   
   const newVelocity = vectorAdd(velocity, vectorScale(acceleration, dt));
-  const newPosition = vectorAdd(position, vectorScale(velocity, dt));
+  const newPosition = vectorAdd(position, vectorScale(newVelocity, dt));
   
   return { position: newPosition, velocity: newVelocity };
 }

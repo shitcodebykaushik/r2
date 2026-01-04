@@ -1,8 +1,8 @@
 import { RocketConfig, SimulationState, TrajectoryPoint } from '../types';
-import { GRAVITY, AIR_DENSITY_SEA_LEVEL, SCALE_HEIGHT, ROCKET_CROSS_SECTION_AREA, DT, ATMOSPHERE_LAYERS, SPEED_OF_SOUND_SEA_LEVEL, MAX_STRUCTURAL_LOAD } from '../constants';
+import { GRAVITY, AIR_DENSITY_SEA_LEVEL, SCALE_HEIGHT, ROCKET_CROSS_SECTION_AREA, DT, ATMOSPHERE_LAYERS, SPEED_OF_SOUND_SEA_LEVEL, MAX_STRUCTURAL_LOAD, EARTH_MU, EARTH_RADIUS } from '../constants';
 
 const SEPARATION_IMPULSE = 15; // m/s kick from pneumatic pushers
-const EARTH_RADIUS = 6371000; // m
+// EARTH_RADIUS imported from constants
 
 // Helper function to get atmospheric properties at altitude
 function getAtmosphericProperties(altitude: number): { density: number; temperature: number; pressure: number; layer: string } {
@@ -30,7 +30,8 @@ function getAtmosphericProperties(altitude: number): { density: number; temperat
   }
   
   // Ideal gas law: density = pressure / (R * T)
-  const density = pressure / (287.05 * temp);
+  // Using specific gas constant for dry air R = 287.058 J/(kg·K)
+  const density = pressure / (287.058 * temp);
   
   return {
     density: Math.max(0, density),
@@ -66,6 +67,13 @@ export const calculateNextState = (
 ): SimulationState => {
   const { altitude, velocity, time, activeStage, stage1Fuel, stage2Fuel, maxAltitude, maxVelocity, temperature, maxTemperature, deltaVExpended, maxGForce, maxDynamicPressure, downrangeDistance, thrustAngle: currentAngle } = currentState;
   
+  // Initialize horizontal velocity if missing (legacy state support)
+  const velocityX = currentState.velocityX || 0;
+  // In this codebase, 'velocity' often refers to vertical velocity (Vy) or total velocity depending on context.
+  // Based on the integration `newAltitude = altitude + newVelocity * DT`, `velocity` here acts as Vy.
+  const velocityY = velocity; 
+  const vTotal = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+
   // 1. Determine Mass (including payload)
   let currentMass = 0;
   let dryMassOnly = 0;
@@ -92,14 +100,24 @@ export const calculateNextState = (
   const angleRad = (thrustAngle * Math.PI) / 180;
 
   // 4. Forces
-  const forceGravity = currentMass * GRAVITY;
+  // Gravity (Altitude dependent)
+  const r = EARTH_RADIUS + altitude;
+  const localGravity = EARTH_MU / (r * r);
+  const forceGravity = currentMass * localGravity;
 
   // Drag (velocity squared law)
-  const dragMagnitude = 0.5 * airDensity * (velocity * velocity) * config.dragCoefficient * ROCKET_CROSS_SECTION_AREA;
-  const forceDrag = velocity > 0 ? -dragMagnitude : dragMagnitude;
+  const dragMagnitude = 0.5 * airDensity * (vTotal * vTotal) * config.dragCoefficient * ROCKET_CROSS_SECTION_AREA;
+  
+  // Drag components (opposing motion)
+  let dragX = 0;
+  let dragY = 0;
+  if (vTotal > 0) {
+    dragX = -dragMagnitude * (velocityX / vTotal);
+    dragY = -dragMagnitude * (velocityY / vTotal);
+  }
 
   // Dynamic Pressure (Max Q indicator)
-  const dynamicPressure = 0.5 * airDensity * (velocity * velocity);
+  const dynamicPressure = 0.5 * airDensity * (vTotal * vTotal);
 
   // 5. Thrust & Burn Logic
   let forceThrust = 0;
@@ -145,8 +163,8 @@ export const calculateNextState = (
   const thrustVertical = forceThrust * Math.cos(angleRad);
   const thrustHorizontal = forceThrust * Math.sin(angleRad);
   
-  const forceNetVertical = thrustVertical + forceDrag - forceGravity;
-  const forceNetHorizontal = thrustHorizontal;
+  const forceNetVertical = thrustVertical + dragY - forceGravity;
+  const forceNetHorizontal = thrustHorizontal + dragX;
 
   // 6. Integration
   const accelerationVertical = forceNetVertical / currentMass;
@@ -154,21 +172,25 @@ export const calculateNextState = (
   const acceleration = Math.sqrt(accelerationVertical * accelerationVertical + accelerationHorizontal * accelerationHorizontal);
   
   // G-Force calculation
-  const gForce = acceleration / GRAVITY;
+  const gForce = acceleration / GRAVITY; // Keep using standard gravity for G-force reference
   
-  const newVelocity = velocity + accelerationVertical * DT + velocityAdjustment;
-  const newAltitude = altitude + newVelocity * DT;
+  const newVelocityY = velocityY + accelerationVertical * DT + velocityAdjustment;
+  const newVelocityX = velocityX + accelerationHorizontal * DT;
+  
+  const newAltitude = altitude + newVelocityY * DT;
   
   // Downrange distance (horizontal travel)
-  const horizontalVelocity = thrustHorizontal / currentMass * DT;
-  const newDownrange = downrangeDistance + horizontalVelocity * DT + (velocity * Math.sin(angleRad) * DT);
+  const newDownrange = downrangeDistance + newVelocityX * DT;
+  
+  // Total velocity magnitude
+  const newVelocity = newVelocityY; // Keep 'velocity' as vertical for compatibility
   
   // 7. Thermodynamics with realistic atmosphere
   const T_ambient = atm.temperature;
   
   // Mach Number
   const localSpeedOfSound = Math.sqrt(1.4 * 287.05 * T_ambient);
-  const mach = Math.abs(velocity) / localSpeedOfSound;
+  const mach = vTotal / localSpeedOfSound;
 
   // Recovery Temperature
   const T_recovery = T_ambient * (1 + 0.17 * mach * mach);
@@ -215,7 +237,9 @@ export const calculateNextState = (
   }
 
   const finalAltitude = Math.max(0, newAltitude);
-  const finalVelocity = finalAltitude === 0 ? 0 : newVelocity;
+  const finalVelocityY = finalAltitude === 0 ? 0 : newVelocityY;
+  const finalVelocityX = finalAltitude === 0 ? 0 : newVelocityX;
+  const finalVelocity = finalAltitude === 0 ? 0 : finalVelocityY; // Keeping as vertical velocity
   const finalAcceleration = finalAltitude === 0 ? 0 : acceleration;
 
   return {
@@ -224,11 +248,11 @@ export const calculateNextState = (
     velocity: finalVelocity,
     acceleration: finalAcceleration,
     
-    // 2D Position & Velocity (placeholder for now - will implement orbital mechanics later)
-    positionX: currentState.positionX || 0,
-    positionY: currentState.positionY || 6371000,
-    velocityX: currentState.velocityX || 0,
-    velocityY: currentState.velocityY || 0,
+    // 2D Position & Velocity
+    positionX: newDownrange,
+    positionY: finalAltitude + EARTH_RADIUS,
+    velocityX: finalVelocityX,
+    velocityY: finalVelocityY,
     
     stage1Fuel: newS1Fuel,
     stage2Fuel: newS2Fuel,
